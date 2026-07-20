@@ -15,7 +15,10 @@ from signal_lti import DiscreteSignal, LTISystem, readable_time_ticks
 
 # Build a DiscreteSignal from a range and a list of values.
 def make_signal(start_time, end_time, values):
-    raise NotImplementedError("Complete make_signal")
+    sig = DiscreteSignal(start_time, end_time)
+    for t, v in zip(sig.times(), values):
+        sig.set_value_at_time(t, v)
+    return sig
 
 
 # Build a DiscreteSignal from selected sample values.
@@ -25,12 +28,18 @@ def signal_from_samples(start_time, end_time, samples):
 
 # Return the identity impulse response: h[0] = 1.
 def impulse_identity():
-    raise NotImplementedError("Complete impulse_identity")
+    sig = DiscreteSignal(0, 0)
+    sig.set_value_at_time(0, 1.0)
+    return sig
 
 
 # Return moving-average h[n] = 1/length for n = 0,...,length-1.
 def impulse_moving_average(length):
-    raise NotImplementedError("Complete impulse_moving_average")
+    sig = DiscreteSignal(0, length - 1)
+    for n in range(length):
+        sig.set_value_at_time(n, 1.0 / length)
+
+    return sig
 
 
 # Return the 3-point moving average: h[0] = h[1] = h[2] = 1/3.
@@ -50,12 +59,19 @@ def impulse_moving_average_7():
 
 # Return weighted smoothing: h[0] = 0.5, h[1] = 0.3, h[2] = 0.2.
 def impulse_weighted_smoothing():
-    raise NotImplementedError("Complete impulse_weighted_smoothing")
+    sig = DiscreteSignal(0, 2)
+    sig.set_value_at_time(0, 0.5)
+    sig.set_value_at_time(1, 0.3)
+    sig.set_value_at_time(2, 0.2)
+    return sig
 
 
 # Return first difference: h[0] = 1, h[1] = -1.
 def impulse_first_difference():
-    raise NotImplementedError("Complete impulse_first_difference")
+    sig = DiscreteSignal(0, 1)
+    sig.set_value_at_time(0, 1.0)
+    sig.set_value_at_time(1, -1.0)
+    return sig
 
 
 BUILT_IN_IMPULSES = [
@@ -128,7 +144,14 @@ def print_signal(signal, name):
 
 # Return the maximum absolute sample difference between two signals.
 def max_absolute_difference(first_signal, second_signal):
-    raise NotImplementedError("Complete max_absolute_difference")
+    second_signal = second_signal.multiply(-1)
+    signal_diff = first_signal.add(second_signal)
+
+    values = []
+    for _, value in signal_diff.nonzero_samples():
+        values.append(abs(value))
+
+    return max(values) if values else 0.0
 
 
 def normalized_grayscale_rgb(signal):

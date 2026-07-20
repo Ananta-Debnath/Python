@@ -19,66 +19,69 @@ class DiscreteSignal:
 
     # Create a finite discrete-time signal over the given integer range.
     def __init__(self, start_time, end_time):
-        self.n = np.arange(start_time, end_time+1)
-        self.x = np.zeros_like(self.n, dtype=float)
+        # self.times() = np.arange(start_time, end_time+1)
+        self.start_time = start_time
+        self.end_time = end_time
+        len = self.end_time - self.start_time + 1
+        self.values = np.zeros(len, dtype=float)
 
     # Return the number of stored samples in the signal.
     def __len__(self):
-        return len(self.n)
+        return self.end_time - self.start_time + 1
 
     # Return the integer time indices covered by the signal.
     def times(self):
-        return self.n.copy()
+        return np.arange(self.start_time, self.end_time + 1)
 
     # Return the signal value at the given time index.
     def get_value_at_time(self, t):
-        idx = t - self.n[0]
-        if idx < 0 or idx >= len(self.n):
+        idx = t - self.start_time
+        if idx < 0 or idx >= len(self):
             raise ValueError(f"Time {t} is outside the signal.")
-        return self.x[idx]
+        return self.values[idx]
 
     # Set the signal value at the given time index.
     def set_value_at_time(self, t, value):
-        idx = t - self.n[0]
-        if idx < 0 or idx >= len(self.n):
+        idx = t - self.start_time
+        if idx < 0 or idx >= len(self):
             raise ValueError(f"Time {t} is outside the signal.")
-        self.x[idx] = value
+        self.values[idx] = value
 
     # Return a shifted copy of the signal.
     def shift(self, k):
-        result = DiscreteSignal(self.n[0]+k, self.n[-1]+k)
-        result.x = self.x.copy()
+        result = DiscreteSignal(self.start_time + k, self.end_time + k)
+        result.values = self.values.copy()
 
         return result
 
     # Return the sum of this signal and another signal.
     def add(self, other):
-        start = min(self.n[0], other.n[0])
-        end = max(self.n[-1], other.n[-1])
+        start = min(self.start_time, other.start_time)
+        end = max(self.end_time, other.end_time)
 
         result = DiscreteSignal(start, end)
 
         # Add values from the first signal
-        for i, n in enumerate(self.n):
-            result.x[n - start] += self.x[i]
+        for i, n in enumerate(self.times()):
+            result.values[n - start] += self.values[i]
 
         # Add values from the second signal
-        for i, n in enumerate(other.n):
-            result.x[n - start] += other.x[i]
+        for i, n in enumerate(other.times()):
+            result.values[n - start] += other.values[i]
 
         return result
 
     # Return a scaled copy of the signal.
     def multiply(self, scalar):
-        result = DiscreteSignal(self.n[0], self.n[-1])
-        result.x = scalar * self.x
+        result = DiscreteSignal(self.times()[0], self.times()[-1])
+        result.values = scalar * self.values
 
         return result
 
     # Return the nonzero samples of the signal.
     def nonzero_samples(self, tolerance=1e-12):
-        mask = np.abs(self.x) > tolerance
-        return zip(self.n[mask], self.x[mask])
+        mask = np.abs(self.values) > tolerance
+        return zip(self.times()[mask], self.values[mask])
 
     def plot(self, title, save_path=None, ax=None):
         import matplotlib.pyplot as plt
@@ -114,7 +117,7 @@ class LTISystem:
         if not isinstance(impulse_response, DiscreteSignal):
             raise TypeError("impulse_response must be a DiscreteSignal")
         
-        self.h = impulse_response.copy()
+        self.h = impulse_response.multiply(1.0)  # Woraround for copy
 
     # Return the output time range for the convolution result.
     def output_range(self, input_signal):
