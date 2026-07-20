@@ -1,6 +1,6 @@
 from pathlib import Path
 import hashlib
-from PIL import Image
+from PIL import Image, ImageChops
 import numpy as np
 
 
@@ -31,6 +31,14 @@ def compare_png(file1, file2):
 
     return False, f"{diff_pixels} pixels differ"
 
+def save_difference(img1_path, img2_path, output):
+    img1 = Image.open(img1_path).convert("RGBA")
+    img2 = Image.open(img2_path).convert("RGBA")
+
+    diff = ImageChops.difference(img1, img2)
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    diff.save(output)
 
 def compare_folders(folder1, folder2):
     """
@@ -58,6 +66,7 @@ def compare_folders(folder1, folder2):
             identical, message = compare_png(file1, file2)
             if not identical:
                 differences.append((relative, message))
+                save_difference(file1, file2, f"diff\\{relative}")
             continue
 
         else:
