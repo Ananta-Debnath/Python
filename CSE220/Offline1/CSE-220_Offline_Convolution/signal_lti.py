@@ -19,39 +19,66 @@ class DiscreteSignal:
 
     # Create a finite discrete-time signal over the given integer range.
     def __init__(self, start_time, end_time):
-        raise NotImplementedError("Complete the DiscreteSignal constructor")
+        self.t = np.arange(start_time, end_time+1)
+        self.x = np.zeros_like(self.t, dtype=float)
 
     # Return the number of stored samples in the signal.
     def __len__(self):
-        raise NotImplementedError("Complete __len__")
+        return len(self.t)
 
     # Return the integer time indices covered by the signal.
     def times(self):
-        raise NotImplementedError("Complete times")
+        return self.t.copy()
 
     # Return the signal value at the given time index.
     def get_value_at_time(self, t):
-        raise NotImplementedError("Complete get_value_at_time")
+        idx = t - self.t[0]
+        if idx < 0 or idx >= len(self.t):
+            raise ValueError(f"Time {t} is outside the signal.")
+        return self.x[idx]
 
     # Set the signal value at the given time index.
     def set_value_at_time(self, t, value):
-        raise NotImplementedError("Complete set_value_at_time")
+        idx = t - self.t[0]
+        if idx < 0 or idx >= len(self.t):
+            raise ValueError(f"Time {t} is outside the signal.")
+        self.x[idx] = value
 
     # Return a shifted copy of the signal.
     def shift(self, k):
-        raise NotImplementedError("Complete shift")
+        result = DiscreteSignal(self.t[0]+k, self.t[-1]+k)
+        result.x = self.x.copy()
+
+        return result
 
     # Return the sum of this signal and another signal.
     def add(self, other):
-        raise NotImplementedError("Complete add")
+        start = min(self.t[0], other.t[0])
+        end = max(self.t[-1], other.t[-1])
+
+        result = DiscreteSignal(start, end)
+
+        # Add values from the first signal
+        for i, n in enumerate(self.t):
+            result.x[n - start] += self.x[i]
+
+        # Add values from the second signal
+        for i, n in enumerate(other.t):
+            result.x[n - start] += other.x[i]
+
+        return result
 
     # Return a scaled copy of the signal.
     def multiply(self, scalar):
-        raise NotImplementedError("Complete multiply")
+        result = DiscreteSignal(self.t[0], self.t[-1])
+        result.x = scalar * self.x
+
+        return result
 
     # Return the nonzero samples of the signal.
     def nonzero_samples(self, tolerance=1e-12):
-        raise NotImplementedError("Complete nonzero_samples")
+        mask = np.abs(self.x) > tolerance
+        return self.t[mask], self.x[mask]
 
     def plot(self, title, save_path=None, ax=None):
         import matplotlib.pyplot as plt
