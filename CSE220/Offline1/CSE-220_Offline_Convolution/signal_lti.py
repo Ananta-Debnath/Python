@@ -78,7 +78,7 @@ class DiscreteSignal:
     # Return the nonzero samples of the signal.
     def nonzero_samples(self, tolerance=1e-12):
         mask = np.abs(self.x) > tolerance
-        return self.n[mask], self.x[mask]
+        return zip(self.n[mask], self.x[mask])
 
     def plot(self, title, save_path=None, ax=None):
         import matplotlib.pyplot as plt
@@ -118,24 +118,57 @@ class LTISystem:
 
     # Return the output time range for the convolution result.
     def output_range(self, input_signal):
-        raise NotImplementedError("Complete output_range")
+        start_time = self.h.times()[0] + input_signal.times()[0]
+        end_time = self.h.times()[-1] + input_signal.times()[-1]
+
+        return start_time, end_time
 
     # Return all shifted and scaled impulse-response components for the input.
     def get_response_components(self, input_signal):
-        raise NotImplementedError("Complete get_response_components")
+        nonzero_samples = input_signal.nonzero_samples()
+        components = []
+
+        for k, x_k in nonzero_samples:
+            shifted_h = self.h.shift(k)
+            scaled_h = shifted_h.multiply(x_k)
+            components.append(scaled_h)
+
+        return components
 
     # Return the system output using superposition of response components.
     def output_by_superposition(self, input_signal):
-        raise NotImplementedError("Complete output_by_superposition")
+        components = self.get_response_components(input_signal)
+        output_signal = DiscreteSignal(*self.output_range(input_signal))
+
+        for component in components:
+            output_signal = output_signal.add(component)
+
+        return output_signal
 
     # Return the nonzero product terms that contribute to one output sample.
     def get_contributions_at_time(self, input_signal, n):
-        raise NotImplementedError("Complete get_contributions_at_time")
+        contributions = []
+        for k, x_k in input_signal.nonzero_samples():
+            h_index = n - k
+            try:
+                h_value = self.h.get_value_at_time(h_index)
+                y_k = x_k * h_value
+                if abs(y_k) > 1e-12:
+                    contributions.append(y_k)
+            except ValueError:
+                continue
+
+        return contributions
 
     # Return one output sample of the LTI system.
     def output_at_time(self, input_signal, n):
-        raise NotImplementedError("Complete output_at_time")
+        contributions = self.get_contributions_at_time(input_signal, n)
+        return sum(contributions)
 
     # Return the complete output signal of the LTI system.
     def output(self, input_signal):
-        raise NotImplementedError("Complete output")
+        output_signal = DiscreteSignal(*self.output_range(input_signal))
+        for n in output_signal.times():
+            output_signal.set_value_at_time(n, self.output_at_time(input_signal, n))
+
+        return output_signal
