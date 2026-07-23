@@ -1,5 +1,6 @@
 .vscode
 __pycache__
+**/*.zip
 
 /CSE220/Offline1/CSE-220_Offline_Convolution/outputs
 /diff/
