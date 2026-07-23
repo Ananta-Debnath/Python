@@ -23,7 +23,10 @@ def make_signal(start_time, end_time, values):
 
 # Build a DiscreteSignal from selected sample values.
 def signal_from_samples(start_time, end_time, samples):
-    raise NotImplementedError("Complete signal_from_samples")
+    sig = DiscreteSignal(start_time, end_time)
+    for t, v in samples:
+        sig.set_value_at_time(t, v)
+    return sig
 
 
 # Return the identity impulse response: h[0] = 1.

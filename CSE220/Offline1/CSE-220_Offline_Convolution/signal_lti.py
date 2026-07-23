@@ -81,7 +81,7 @@ class DiscreteSignal:
     # Return the nonzero samples of the signal.
     def nonzero_samples(self, tolerance=1e-12):
         mask = np.abs(self.values) > tolerance
-        return zip(self.times()[mask], self.values[mask])
+        return list(zip(self.times()[mask], self.values[mask]))
 
     def plot(self, title, save_path=None, ax=None):
         import matplotlib.pyplot as plt
@@ -128,10 +128,9 @@ class LTISystem:
 
     # Return all shifted and scaled impulse-response components for the input.
     def get_response_components(self, input_signal):
-        nonzero_samples = input_signal.nonzero_samples()
         components = []
 
-        for k, x_k in nonzero_samples:
+        for k, x_k in input_signal.nonzero_samples():
             shifted_h = self.h.shift(k)
             scaled_h = shifted_h.multiply(x_k)
             components.append(scaled_h)
