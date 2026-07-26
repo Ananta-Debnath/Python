@@ -8,6 +8,8 @@ Instructions:
 import numpy as np
 import matplotlib.pyplot as plt
 
+from signal_lti import DiscreteSignal, LTISystem
+
 
 def make_signal(start_time, end_time, values):
     """Helper: build a DiscreteSignal from a list of values."""
@@ -18,9 +20,14 @@ def make_signal(start_time, end_time, values):
 
 
 def max_absolute_difference(first_signal, second_signal):
-    """Helper: largest |difference| between two signals over their combined range."""
-    # TODO: reuse your offline implementation of this function.
-    raise NotImplementedError
+    second_signal = second_signal.multiply(-1)
+    signal_diff = first_signal.add(second_signal)
+
+    values = []
+    for _, value in signal_diff.nonzero_samples():
+        values.append(abs(value))
+
+    return max(values) if values else 0.0
 
 
 # ---- Generic property testers ----
@@ -33,13 +40,17 @@ def max_absolute_difference(first_signal, second_signal):
 def test_linearity(apply_system, x1, x2, a, b):
 
     #TODO: Return max| apply_system(a*x1 + b*x2)  -  (a*apply_system(x1) + b*apply_system(x2)) |
-
-    raise NotImplementedError
+    signal1 = apply_system(x1.multiply(a).add(x2.multiply(b)))
+    signal2 = apply_system(x1).multiply(a).add(apply_system(x2).multiply(b))
+    return max_absolute_difference(signal1, signal2)
 
 
 def test_time_invariance(apply_system, x, k):
 
     #TODO: Return max| apply_system(x shifted by k)  -  (apply_system(x) shifted by k) |
+    signal1 = apply_system(x.shift(k))
+    signal2 = apply_system(x).shift(k)
+    return max_absolute_difference(signal1, signal2)
 
     raise NotImplementedError
 
@@ -48,7 +59,12 @@ def test_time_invariance(apply_system, x, k):
 
 def system_b(input_signal):
     # TODO: build and return a DiscreteSignal where output[n] = n * input_signal[n]
-    raise NotImplementedError
+    output = input_signal.multiply(1)
+    times = output.times()
+    for time in times:
+        output.set_value_at_time(time, time*output.get_value_at_time(time))
+
+    return output
 
 
 def main():
@@ -63,9 +79,11 @@ def main():
     h = make_signal(0, 2, [1.0, 0.5, 0.25])
     #TODO: Test both properties for system A
 
+    ltisystem = LTISystem(h)
+
     print("=== System A: genuine LTI system (LTISystem.output) ===")
-    diff_linear_a = None
-    diff_ti_a = None
+    diff_linear_a = test_linearity(ltisystem.output, x1, x2, a, b)
+    diff_ti_a = test_time_invariance(ltisystem.output, x1, k)
     print(f"Linearity max diff:        {diff_linear_a}")
     print(f"Time-invariance max diff:  {diff_ti_a}")
 
@@ -73,8 +91,8 @@ def main():
 
     #TODO: Test both properties for system B
     print("=== System B: y[n] = n * x[n] ===")
-    diff_linear_b = None
-    diff_ti_b = None
+    diff_linear_b = test_linearity(system_b, x1, x2, a, b)
+    diff_ti_b = test_time_invariance(system_b, x1, k)
     print(f"Linearity max diff:        {diff_linear_b}")
     print(f"Time-invariance max diff:  {diff_ti_b}")
 

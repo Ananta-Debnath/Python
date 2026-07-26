@@ -14,6 +14,8 @@ Compare results only on OBSERVATION_START...OBSERVATION_END.
 import numpy as np
 import matplotlib.pyplot as plt
 
+from signal_lti import DiscreteSignal, LTISystem
+
 
 def make_signal(start_time, end_time, values):
     """Helper: build a DiscreteSignal from a list of values."""
@@ -26,7 +28,15 @@ def make_signal(start_time, end_time, values):
 def max_absolute_difference_in_range(first_signal, second_signal, start_time, end_time):
     """Largest |first[n] - second[n]| for start_time <= n <= end_time."""
     # TODO: compute and return the maximum absolute difference on this range.
-    raise NotImplementedError
+    second_signal = second_signal.multiply(-1)
+    signal_diff = first_signal.add(second_signal)
+    samples = samples_in_range(signal_diff, start_time, end_time)
+
+    values = []
+    for _, value in samples:
+        values.append(abs(value))
+
+    return max(values) if values else 0.0
 
 
 def samples_in_range(signal, start_time, end_time):
@@ -43,7 +53,11 @@ def cascade(first_system, second_system, input_signal):
     # intermediate_output = first_system.output(...)
     # final_output = second_system.output(...)
     # return intermediate_output, final_output
-    raise NotImplementedError
+
+    output1 = first_system.output(input_signal)
+    output2 = second_system.output(output1)
+
+    return output1, output2
 
 
 def plot_cascade_responses(
@@ -110,17 +124,21 @@ def main():
     # TODO: Define impulse responses
     # h1[n] = delta[n] - delta[n-1] = [1, -1]
     # h2[n] = u[n]. Store enough samples for the graded observation window.
+    signal1 = make_signal(0, 1, [1, -1])
+    signal2 = make_signal(0, 10, [1]*11)
 
     # TODO: create the two LTISystem objects.
-    differentiator = None
-    accumulator = None
+    differentiator = LTISystem(signal1)
+    accumulator = LTISystem(signal2)
 
     # TODO: apply x[n] through Accumulator -> First difference.
     accumulator_output = None
     difference_output = None
 
+    accumulator_output, difference_output = cascade(accumulator, differentiator, x)
+
     # TODO: compare the first-difference response with x[n] on the observation window.
-    max_difference = None
+    max_difference = max_absolute_difference_in_range(x, difference_output, OBSERVATION_START, OBSERVATION_END)
 
     print("=== Input x[n] -> Accumulator -> First difference ===")
     print("Input samples:")
@@ -132,16 +150,16 @@ def main():
     print(f"Maximum absolute difference from x[n]: {max_difference}")
 
     # TODO: call the provided plotting helper:
-    # plot_cascade_responses(
-    #     x,
-    #     accumulator_output,
-    #     difference_output,
-    #     OBSERVATION_START,
-    #     OBSERVATION_END,
-    # )
+    plot_cascade_responses(
+        x,
+        accumulator_output,
+        difference_output,
+        OBSERVATION_START,
+        OBSERVATION_END,
+    )
 
     print()
-    conclusion = None
+    conclusion = "The cascade is an identity system and the differentiator and accumulator are inverse systems under zero initial conditions."
     print(conclusion)
 
     if max_difference is not None:
