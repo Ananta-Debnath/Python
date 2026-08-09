@@ -37,7 +37,8 @@ class DiscreteSignal:
     def get_value_at_time(self, t):
         idx = t - self.start_time
         if idx < 0 or idx >= len(self):
-            raise ValueError(f"Time {t} is outside the signal.")
+            # raise ValueError(f"Time {t} is outside the signal.")
+            return 0
         return self.values[idx]
 
     # Set the signal value at the given time index.
