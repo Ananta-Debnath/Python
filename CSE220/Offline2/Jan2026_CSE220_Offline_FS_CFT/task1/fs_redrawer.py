@@ -36,7 +36,12 @@ class FourierEpicycles:
                            been called
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement __init__")
+        self.t = t
+        self.signal = signal
+        self.N = n_harmonics
+        self.T = t[-1]
+        self.omega = 2 * np.pi / self.T
+        self.coeffs = {}
 
     def calculate_cn(self, n):
         """
@@ -49,7 +54,8 @@ class FourierEpicycles:
         n may be zero, positive, or negative.
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement calculate_cn")
+        integrand = self.signal * np.exp(-1j * n * self.omega * self.t)
+        return np.trapezoid(integrand, self.t) / self.T
 
     def calculate_all_coefficients(self):
         """
@@ -57,7 +63,8 @@ class FourierEpicycles:
         n = -N, ..., -1, 0, 1, ..., N by repeatedly calling calculate_cn(n).
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement calculate_all_coefficients")
+        for n in range(-self.N, self.N + 1):
+            self.coeffs[n] = self.calculate_cn(n)
 
     def approximate(self, t):
         """
@@ -71,7 +78,12 @@ class FourierEpicycles:
         plotting/animation code calls this both ways.
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement approximate")
+        result = 0
+
+        for n in range(-self.N, self.N + 1):
+            result += self.coeffs[n] * np.exp(1j * n * self.omega * t)
+
+        return result
 
 
 if __name__ == "__main__":
@@ -95,3 +107,9 @@ if __name__ == "__main__":
     fs.calculate_all_coefficients()
 
     save_outputs(fs, z, comparison_path, gif_path, num_frames=240)
+
+
+# python fs_redrawer.py svgs/circle.svg 150 outputs/circle_comparison.png outputs/circle_epicycles.gif
+# python fs_redrawer.py svgs/heart.svg 150 outputs/heart_comparison.png outputs/heart_epicycles.gif
+# python fs_redrawer.py svgs/infinity.svg 150 outputs/infinity_comparison.png outputs/infinity_epicycles.gif
+# python fs_redrawer.py svgs/star.svg 150 outputs/star_comparison.png outputs/star_epicycles.gif
