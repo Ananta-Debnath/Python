@@ -68,7 +68,51 @@ class CFT2D:
         real, imag : two 2D numpy arrays, each of shape self.I.shape
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement CFT2D.compute_cft")
+        # Calculate real part
+
+        # cos(2πux) and sin(2πux)
+        cos_ux = np.cos(2 * np.pi * self.u[:, None] * self.x[None, :])
+
+        sin_ux = np.sin(2 * np.pi * self.u[:, None] * self.x[None, :])
+
+        # Multiply by image
+        A_real = self.I[None, :, :] * cos_ux[:, None, :]
+        B_real = self.I[None, :, :] * sin_ux[:, None, :]
+
+        # Integrate over x
+        A_real = np.trapezoid(A_real, self.x, axis=2)
+        B_real = np.trapezoid(B_real, self.x, axis=2)
+
+        # cos(2πvy) and sin(2πvy)
+        cos_vy = np.cos(2 * np.pi * self.v[:, None] * self.y[None, :])
+
+        sin_vy = np.sin(2 * np.pi * self.v[:, None] * self.y[None, :])
+
+        # We need (u, v, y)
+        A_real = A_real[:, None, :] * cos_vy[None, :, :]
+        B_real = B_real[:, None, :] * sin_vy[None, :, :]
+
+        # Integrate over y
+        real = np.trapezoid(A_real - B_real, self.y, axis=2)
+
+        # Calculate imaginary part
+
+        # sin(2πux) and cos(2πux)
+        A_img = self.I[None, :, :] * sin_ux[:, None, :]
+        B_img = self.I[None, :, :] * cos_ux[:, None, :]
+
+        # Integrate over x
+        A_img = np.trapezoid(A_img, self.x, axis=2)
+        B_img = np.trapezoid(B_img, self.x, axis=2)
+
+        # Multiply by cos(2πvy) and sin(2πvy)
+        A_img = A_img[:, None, :] * cos_vy[None, :, :]
+        B_img = B_img[:, None, :] * sin_vy[None, :, :]
+
+        # Integrate over y
+        imag = -np.trapezoid(A_img + B_img, self.y, axis=2)
+
+        return real, imag
 
     def plot_magnitude(self):
         """
@@ -78,7 +122,9 @@ class CFT2D:
         debugging -- not called by the command-line entry point below.
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement CFT2D.plot_magnitude")
+        magnitude = np.sqrt(self.real**2 + self.imag**2)
+        log_magnitude = np.log(1 + magnitude)
+        plt.imshow(log_magnitude, cmap='gray')
 
 
 class FrequencyFilter:
@@ -137,7 +183,39 @@ class InverseCFT2D:
             for how it gets turned into a displayable edge map.
         """
         # TODO: implement this method
-        raise NotImplementedError("Implement InverseCFT2D.reconstruct")
+
+        # Calculate real part
+        cos_ux = np.cos(2 * np.pi * self.x[:, None] * self.u[None, :])
+
+        sin_ux = np.sin(2 * np.pi * self.x[:, None] * self.u[None, :])
+
+        A_real = (self.real[None, :, :] * cos_ux[:, :, None])
+
+        B_real = (self.real[None, :, :] * sin_ux[:, :, None])
+
+        # Calculate imaginary part
+        A_img = (self.imag[None, :, :] * sin_ux[:, :, None])
+
+        B_img = (self.imag[None, :, :] * cos_ux[:, :, None])
+
+        # Integrate over u
+        A_real = np.trapezoid(A_real, self.u, axis=1)
+        B_real = np.trapezoid(B_real, self.u, axis=1)
+
+        A_img = np.trapezoid(A_img, self.u, axis=1)
+        B_img = np.trapezoid(B_img, self.u, axis=1)
+
+        cos_vy = np.cos(2 * np.pi * self.y[:, None] * self.v[None, :])
+
+        sin_vy = np.sin(2 * np.pi * self.y[:, None] * self.v[None, :])
+
+        A = (A_real - A_img)[:, None, :] * cos_vy[None, :, :]
+        B = (B_real + B_img)[:, None, :] * sin_vy[None, :, :]
+
+        # Integrate over v
+        real = np.trapezoid(A - B, self.v, axis=2)
+
+        return real.T
 
 
 # =====================================================
@@ -173,3 +251,7 @@ if __name__ == "__main__":
 
     plt.imsave(output_path, edge_map, cmap='gray')
     print(f"Saved edge map to {output_path}")
+
+
+
+# python cft_edge_detector.py pikachu.png pikachu_edges.png 15
