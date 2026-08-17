@@ -31,10 +31,56 @@ class CFT2D:
         self.v = np.linspace(-1 / (2 * dy), 1 / (2 * dy), self.I.shape[0])
 
     def compute_cft(self):
-        raise NotImplementedError("Paste your Task 2 compute_cft here.")
+        # Calculate real part
+        
+        # cos(2πux) and sin(2πux)
+        cos_ux = np.cos(2 * np.pi * self.u[:, None] * self.x[None, :])
+
+        sin_ux = np.sin(2 * np.pi * self.u[:, None] * self.x[None, :])
+
+        # Multiply by image
+        A_real = self.I[None, :, :] * cos_ux[:, None, :]
+        B_real = self.I[None, :, :] * sin_ux[:, None, :]
+
+        # Integrate over x
+        A_real = np.trapezoid(A_real, self.x, axis=2)
+        B_real = np.trapezoid(B_real, self.x, axis=2)
+
+        # cos(2πvy) and sin(2πvy)
+        cos_vy = np.cos(2 * np.pi * self.v[:, None] * self.y[None, :])
+
+        sin_vy = np.sin(2 * np.pi * self.v[:, None] * self.y[None, :])
+
+        # We need (u, v, y)
+        A_real = A_real[:, None, :] * cos_vy[None, :, :]
+        B_real = B_real[:, None, :] * sin_vy[None, :, :]
+
+        # Integrate over y
+        real = np.trapezoid(A_real - B_real, self.y, axis=2)
+
+        # Calculate imaginary part
+
+        # sin(2πux) and cos(2πux)
+        A_img = self.I[None, :, :] * sin_ux[:, None, :]
+        B_img = self.I[None, :, :] * cos_ux[:, None, :]
+
+        # Integrate over x
+        A_img = np.trapezoid(A_img, self.x, axis=2)
+        B_img = np.trapezoid(B_img, self.x, axis=2)
+
+        # Multiply by cos(2πvy) and sin(2πvy)
+        A_img = A_img[:, None, :] * cos_vy[None, :, :]
+        B_img = B_img[:, None, :] * sin_vy[None, :, :]
+
+        # Integrate over y
+        imag = -np.trapezoid(A_img + B_img, self.y, axis=2)
+
+        return real, imag
 
     def plot_magnitude(self):
-        raise NotImplementedError("Paste your Task 2 plot_magnitude here.")
+        magnitude = np.sqrt(self.real**2 + self.imag**2)
+        log_magnitude = np.log(1 + magnitude)
+        plt.imshow(log_magnitude, cmap='gray')
 
 
 class InverseCFT2D:
@@ -49,7 +95,38 @@ class InverseCFT2D:
         self.y = y
 
     def reconstruct(self):
-        raise NotImplementedError("Paste your Task 2 reconstruct here.")
+        # Calculate real part
+        cos_ux = np.cos(2 * np.pi * self.x[:, None] * self.u[None, :])
+
+        sin_ux = np.sin(2 * np.pi * self.x[:, None] * self.u[None, :])
+
+        A_real = (self.real[None, :, :] * cos_ux[:, :, None])
+
+        B_real = (self.real[None, :, :] * sin_ux[:, :, None])
+
+        # Calculate imaginary part
+        A_img = (self.imag[None, :, :] * sin_ux[:, :, None])
+
+        B_img = (self.imag[None, :, :] * cos_ux[:, :, None])
+
+        # Integrate over u
+        A_real = np.trapezoid(A_real, self.u, axis=1)
+        B_real = np.trapezoid(B_real, self.u, axis=1)
+
+        A_img = np.trapezoid(A_img, self.u, axis=1)
+        B_img = np.trapezoid(B_img, self.u, axis=1)
+
+        cos_vy = np.cos(2 * np.pi * self.y[:, None] * self.v[None, :])
+
+        sin_vy = np.sin(2 * np.pi * self.y[:, None] * self.v[None, :])
+
+        A = (A_real - A_img)[:, None, :] * cos_vy[None, :, :]
+        B = (B_real + B_img)[:, None, :] * sin_vy[None, :, :]
+
+        # Integrate over v
+        real = np.trapezoid(A - B, self.v, axis=2)
+
+        return real.T
 
 
 # =====================================================================
@@ -73,16 +150,38 @@ class FrequencyFilter:
 
     def band_pass(self, real, imag, r_low, r_high):
         """TODO: retain entries with r_low < d(i,j) <= r_high, zero the rest."""
-        raise NotImplementedError
+        rows, cols = real.shape
+        cx, cy = rows // 2, cols // 2
+        real = real.copy()
+        imag = imag.copy()
+        for i in range(rows):
+            for j in range(cols):
+                if not r_low < np.sqrt((i - cx) ** 2 + (j - cy) ** 2) <= r_high:
+                    real[i, j] = 0
+                    imag[i, j] = 0
+        return real, imag
 
     def band_stop(self, real, imag, r_low, r_high):
         """TODO: zero entries with r_low < d(i,j) <= r_high, retain the rest."""
-        raise NotImplementedError
+        rows, cols = real.shape
+        cx, cy = rows // 2, cols // 2
+        real = real.copy()
+        imag = imag.copy()
+        for i in range(rows):
+            for j in range(cols):
+                if r_low < np.sqrt((i - cx) ** 2 + (j - cy) ** 2) <= r_high:
+                    real[i, j] = 0
+                    imag[i, j] = 0
+        return real, imag
 
     def shift_brightness(self, real, imag, shift_amount):
         """TODO: Task 3. Add shift_amount to the real component of the exact center pixel."""
-        raise NotImplementedError
-
+        rows, cols = real.shape
+        cx, cy = rows // 2, cols // 2
+        real = real.copy()
+        imag = imag.copy()
+        real[cx, cy] += shift_amount
+        return real, imag
 
 # =====================================================================
 # Task 2 — complementarity check on raw spatial reconstructions
@@ -92,7 +191,8 @@ class ReconstructionValidator:
 
     def verify_complementarity(self, I_recon, I_bp, I_bs):
         """TODO: verify the complementarity property. Return (is_valid, delta)."""
-        raise NotImplementedError
+        d = np.max(np.abs(I_bp + I_bs - I_recon))
+        return d < 1e-9, d
 
 
 # =====================================================================
