@@ -87,7 +87,6 @@ def to_limbs(text, base_digits=BASE_DIGITS):
     return sign, np.array(limbs, dtype=np.int64)
 
 
-
 def from_limbs(sign, limbs, base_digits=BASE_DIGITS):
     """
     Convert limbs back into a decimal string, propagating carries.
@@ -103,6 +102,7 @@ def from_limbs(sign, limbs, base_digits=BASE_DIGITS):
         The decimal representation. "0" must come out as "0", not "-0" or "".
     """
     # TODO: implement this function
+
     base = 10 ** base_digits
 
     limbs = [int(x) for x in limbs]
@@ -133,8 +133,6 @@ def from_limbs(sign, limbs, base_digits=BASE_DIGITS):
         result = "-" + result
 
     return result
-
-    
 
 
 def multiply_transform(a, b, engine):
@@ -168,37 +166,29 @@ def multiply_transform(a, b, engine):
         you used (report.txt has to state it).
     """
     # TODO: implement this function
+
     a = np.asarray(a, dtype=np.int64)
     b = np.asarray(b, dtype=np.int64)
 
-    # Linear convolution length
     required_length = len(a) + len(b) - 1
 
-    # FFT needs a power-of-two length; DFT does not.
     if isinstance(engine, FFTTransformer):
         N = next_power_of_two(required_length)
     else:
         N = required_length
 
-    # Zero-pad to length N
     a_padded = np.pad(a, (0, N - len(a)))
     b_padded = np.pad(b, (0, N - len(b)))
 
-    # Transform
     A = engine.transform(a_padded)
     B = engine.transform(b_padded)
 
-    # Convolution theorem: convolution <-> pointwise multiplication
     C = A * B
 
-    # Back to coefficient domain
     result = engine.inverse(C)
 
-    # Remove numerical floating-point error
     result = np.rint(result.real).astype(np.int64)
 
-    # Only the first required_length coefficients belong to the
-    # linear convolution.
     result = result[:required_length]
 
     return result, N
@@ -214,6 +204,7 @@ def multiply_schoolbook(a, b):
     sizes.
     """
     # TODO (optional): implement this function
+
     a = np.asarray(a, dtype=np.int64)
     b = np.asarray(b, dtype=np.int64)
 
@@ -233,14 +224,12 @@ def multiply(text_a, text_b, method):
     (bonus). Pick the engine, convert to limbs, convolve, carry, re-sign.
     """
     # TODO: implement this function
-    # Convert decimal strings to sign + little-endian limbs
+
     sign_a, limbs_a = to_limbs(text_a)
     sign_b, limbs_b = to_limbs(text_b)
 
-    # Overall sign
     sign = sign_a * sign_b
 
-    # Select multiplication method
     if method == "dft":
         engine = DFTAnalyzer()
         result, N = multiply_transform(limbs_a, limbs_b, engine)
@@ -260,7 +249,6 @@ def multiply(text_a, text_b, method):
     else:
         raise ValueError(f"Unknown multiplication method: {method}")
 
-    # Convert convolution coefficients into proper base-10 limbs
     product = from_limbs(sign, result)
 
     return product, N, limbs_a, limbs_b
@@ -283,9 +271,9 @@ def run_single(path, method, out_dir):
     MISMATCH; a MISMATCH must not be silently swallowed.
     """
     # TODO: implement this function
+
     os.makedirs(out_dir, exist_ok=True)
 
-    # Read the two operands, ignoring blank lines and comments
     with open(path, "r", encoding="utf-8") as f:
         lines = [
             line.strip()
@@ -299,10 +287,8 @@ def run_single(path, method, out_dir):
     text_a = lines[0]
     text_b = lines[1]
 
-    # Perform multiplication
     product, N, limbs_a, limbs_b = multiply(text_a, text_b, method)
 
-    # Verification -- the only place Python big integers are used
     expected = str(int(text_a) * int(text_b))
 
     if product == expected:
@@ -312,23 +298,25 @@ def run_single(path, method, out_dir):
 
     print(verdict)
 
-    # Write product
     with open(os.path.join(out_dir, "product.txt"), "w", encoding="utf-8") as f:
         f.write(product + "\n")
 
-    # Write report
     with open(os.path.join(out_dir, "report.txt"), "w", encoding="utf-8") as f:
-        f.write(f"Input path: {path}\n")
-        f.write(f"Method: {method}\n")
-        f.write(f"Digits in operand A: {len(text_a.lstrip('+-'))}\n")
-        f.write(f"Digits in operand B: {len(text_b.lstrip('+-'))}\n")
-        f.write(f"Base: {10 ** BASE_DIGITS}\n")
-        f.write(f"Base digits: {BASE_DIGITS}\n")
-        f.write(f"Limbs in operand A: {len(limbs_a)}\n")
-        f.write(f"Limbs in operand B: {len(limbs_b)}\n")
-        f.write(f"Transform length N: {N}\n")
-        f.write(f"Product digits: {len(product.lstrip('-'))}\n")
-        f.write(f"Verification: {verdict}\n")
+        f.write("Task A -- big-integer multiplication by spectral convolution\n")
+        f.write(f"input file          : {path}\n")
+        f.write(f"method              : {method}\n")
+        f.write(
+            f"digits of A / B     : "
+            f"{len(text_a.lstrip('+-'))} / {len(text_b.lstrip('+-'))}\n"
+        )
+        f.write(f"base                : 10^{BASE_DIGITS}\n")
+        f.write(
+            f"limbs of A / B      : "
+            f"{len(limbs_a)} / {len(limbs_b)}\n"
+        )
+        f.write(f"transform length N  : {N}\n")
+        f.write(f"digits of product   : {len(product.lstrip('-'))}\n")
+        f.write(f"verification        : {verdict}\n")
 
     if verdict == "MISMATCH":
         print(f"MISMATCH: expected {expected}, got {product}")

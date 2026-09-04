@@ -14,6 +14,37 @@ def file_hash(path, chunk_size=8192):
 
     return sha.hexdigest()
 
+def compare_text(file1, file2):
+    """
+    Compare two text files line by line.
+
+    Returns:
+        (True, "") if identical
+        (False, message) if different
+    """
+    with open(file1, "r", encoding="utf-8") as f:
+        lines1 = f.readlines()
+
+    with open(file2, "r", encoding="utf-8") as f:
+        lines2 = f.readlines()
+
+    if lines1 == lines2:
+        return True, ""
+
+    max_lines = max(len(lines1), len(lines2))
+
+    for i in range(max_lines):
+        line1 = lines1[i].rstrip("\n") if i < len(lines1) else "<missing>"
+        line2 = lines2[i].rstrip("\n") if i < len(lines2) else "<missing>"
+
+        if line1 != line2:
+            return False, (
+                f"Difference at line {i + 1}: "
+                f"'{line1}' != '{line2}'"
+            )
+
+    return False, "Different"
+
 def compare_png(file1, file2):
     img1 = Image.open(file1).convert("RGBA")
     img2 = Image.open(file2).convert("RGBA")
@@ -69,6 +100,12 @@ def compare_folders(folder1, folder2):
                 save_difference(file1, file2, f"diff\\{relative}")
             continue
 
+        elif file1.suffix.lower() in [".txt", ".py", ".csv"]:
+            identical, message = compare_text(file1, file2)
+            if not identical:
+                differences.append((relative, message))
+            continue
+
         else:
             hash1 = file_hash(file1)
             hash2 = file_hash(file2)
@@ -80,8 +117,8 @@ def compare_folders(folder1, folder2):
 
 
 diffs = compare_folders(
-    "D:\Ananta\Programming\Python\CSE220\Offline1\CSE-220_Offline_Convolution\expected_outputs",
-    "D:\Ananta\Programming\Python\CSE220\Offline1\CSE-220_Offline_Convolution\outputs"
+    "D:\Ananta\Programming\Python\CSE220\Offline3\Jan2026_CSE220_Offline_DFT_FFT\expected_outputs",
+    "D:\Ananta\Programming\Python\CSE220\Offline3\Jan2026_CSE220_Offline_DFT_FFT\outputs"
 )
 
 for file, status in diffs:

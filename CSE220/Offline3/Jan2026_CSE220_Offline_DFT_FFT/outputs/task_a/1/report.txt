@@ -1,11 +1,9 @@
-Input path: inputs/1.txt
-Method: dft
-Digits in operand A: 12
-Digits in operand B: 9
-Base: 10000
-Base digits: 4
-Limbs in operand A: 3
-Limbs in operand B: 3
-Transform length N: 5
-Product digits: 21
-Verification: MATCH
+Task A -- big-integer multiplication by spectral convolution
+input file          : inputs/1.txt
+method              : dft
+digits of A / B     : 12 / 9
+base                : 10^4
+limbs of A / B      : 3 / 3
+transform length N  : 5
+digits of product   : 21
+verification        : MATCH

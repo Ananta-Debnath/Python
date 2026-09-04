@@ -29,6 +29,7 @@ def next_power_of_two(n):
     Both tasks need this to choose a transform length for the radix-2 FFT.
     """
     # TODO: implement this function
+    
     power = 1
     while power < n:
         power *= 2
@@ -62,6 +63,7 @@ class DFTAnalyzer:
         numpy.ndarray of complex128, shape (N,)
         """
         # TODO: implement this method
+
         x = np.asarray(x, dtype=np.complex128)
         N = len(x)
 
@@ -88,6 +90,7 @@ class DFTAnalyzer:
             it is safe to take .real.
         """
         # TODO: implement this method
+
         spectrum = np.asarray(spectrum, dtype=np.complex128)
         N = len(spectrum)
 
@@ -129,11 +132,9 @@ class FFTTransformer(DFTAnalyzer):
         x = np.asarray(x, dtype=np.complex128)
         N = len(x)
 
-        # Radix-2 FFT requires N to be a power of two
         if N == 0 or (N & (N - 1)) != 0:
             raise ValueError("FFT length must be a power of two")
 
-        # Bit-reversal permutation
         j = 0
         for i in range(1, N):
             bit = N >> 1
@@ -147,13 +148,11 @@ class FFTTransformer(DFTAnalyzer):
             if i < j:
                 x[i], x[j] = x[j], x[i]
 
-        # Cooley-Tukey butterfly stages
         size = 2
 
         while size <= N:
             half = size // 2
 
-            # Twiddle factors computed once for this stage
             twiddles = np.exp(-2j * np.pi * np.arange(half) / size)
 
             for start in range(0, N, size):
@@ -214,48 +213,38 @@ class ArbitraryLengthFFT(FFTTransformer):
         if N == 0:
             return np.array([], dtype=np.complex128)
 
-        # Bluestein requires a convolution of length 2N - 1.
-        # Pad that convolution to a power of two.
         M = next_power_of_two(2 * N - 1)
 
         n = np.arange(N)
 
-        # exp(-j*pi*n^2/N)
         chirp = np.exp(-1j * np.pi * n**2 / N)
 
-        # x[n] * exp(-j*pi*n^2/N)
         a = x * chirp
 
-        # b[n] = exp(+j*pi*n^2/N)
         b = np.zeros(M, dtype=np.complex128)
 
         b[:N] = np.exp(1j * np.pi * n**2 / N)
 
-        # b[-n] = exp(+j*pi*n^2/N)
-        # These values are needed for the convolution.
         for k in range(1, N):
             b[M - k] = b[k]
 
-        # Perform convolution using the radix-2 FFT.
         A = super().transform(np.pad(a, (0, M - N)))
         B = super().transform(b)
 
         convolution = super().inverse(A * B)
 
-        # X[k] = exp(-j*pi*k^2/N) * convolution[k]
         result = convolution[:N] * chirp
 
         return result
 
     def inverse(self, spectrum):
         # TODO (bonus): implement this method
-        
+
         spectrum = np.asarray(spectrum, dtype=np.complex128)
 
         if len(spectrum) == 0:
             return np.array([], dtype=np.complex128)
 
-        # IFFT(X) = conjugate(FFT(conjugate(X))) / N
         return np.conjugate(
             self.transform(np.conjugate(spectrum))
         ) / len(spectrum)
