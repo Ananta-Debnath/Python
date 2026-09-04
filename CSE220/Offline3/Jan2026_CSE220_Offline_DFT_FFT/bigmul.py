@@ -24,7 +24,7 @@ import numpy as np
 
 from bench_utils import plot_runtime_curve, time_best, timing_table_lines
 from io_utils import random_decimal, read_operands, write_report, write_text
-from transforms import DFTAnalyzer, FFTTransformer, next_power_of_two, ArbitraryLengthFFT
+from transforms import DFTAnalyzer, FFTTransformer, next_power_of_two, ArbitraryLengthFFT, NTTTransformer
 
 # Python 3.11+ refuses to print integers longer than 4300 digits unless this
 # limit is raised, and the verification step below prints one.
@@ -35,6 +35,23 @@ sys.set_int_max_str_digits(2_000_000)
 # breaks if you raise it too far.
 BASE_DIGITS = 4
 BASE = 10 ** BASE_DIGITS
+
+
+def choose_ntt_base_digits(a, b):
+    p = NTTTransformer.MOD
+    L = min(len(a), len(b))
+
+    base_digits = 1
+
+    while True:
+        B = 10 ** (base_digits + 1)
+
+        if L * (B - 1) ** 2 < p:
+            base_digits += 1
+        else:
+            break
+
+    return base_digits
 
 
 def to_limbs(text, base_digits=BASE_DIGITS):
@@ -172,7 +189,7 @@ def multiply_transform(a, b, engine):
 
     required_length = len(a) + len(b) - 1
 
-    if isinstance(engine, FFTTransformer):
+    if engine.name == "fft" or engine.name == "ntt":
         N = next_power_of_two(required_length)
     else:
         N = required_length
@@ -229,6 +246,7 @@ def multiply(text_a, text_b, method):
     sign_b, limbs_b = to_limbs(text_b)
 
     sign = sign_a * sign_b
+    base_digits = BASE_DIGITS
 
     if method == "dft":
         engine = DFTAnalyzer()
@@ -246,12 +264,21 @@ def multiply(text_a, text_b, method):
         result = multiply_schoolbook(limbs_a, limbs_b)
         N = len(limbs_a) + len(limbs_b) - 1
 
+    elif method == "ntt":
+        base_digits = choose_ntt_base_digits(text_a, text_b)
+        sign_a, limbs_a = to_limbs(text_a, base_digits=base_digits)
+        sign_b, limbs_b = to_limbs(text_b, base_digits=base_digits)
+        engine = NTTTransformer()
+        result, N = multiply_transform(limbs_a, limbs_b, engine)
+        product = from_limbs(sign, result, base_digits=base_digits)
+
     else:
         raise ValueError(f"Unknown multiplication method: {method}")
 
-    product = from_limbs(sign, result)
+    if method != "ntt":
+        product = from_limbs(sign, result)
 
-    return product, N, limbs_a, limbs_b
+    return product, N, limbs_a, limbs_b, base_digits
 
 
 def run_single(path, method, out_dir):
@@ -287,7 +314,7 @@ def run_single(path, method, out_dir):
     text_a = lines[0]
     text_b = lines[1]
 
-    product, N, limbs_a, limbs_b = multiply(text_a, text_b, method)
+    product, N, limbs_a, limbs_b, base_digits = multiply(text_a, text_b, method)
 
     expected = str(int(text_a) * int(text_b))
 
@@ -309,7 +336,7 @@ def run_single(path, method, out_dir):
             f"digits of A / B     : "
             f"{len(text_a.lstrip('+-'))} / {len(text_b.lstrip('+-'))}\n"
         )
-        f.write(f"base                : 10^{BASE_DIGITS}\n")
+        f.write(f"base                : 10^{base_digits}\n")
         f.write(
             f"limbs of A / B      : "
             f"{len(limbs_a)} / {len(limbs_b)}\n"
@@ -381,7 +408,7 @@ def main():
     ap = argparse.ArgumentParser(description="Big-integer multiplication by DFT/FFT")
     ap.add_argument("input", nargs="?", help="input file with the two operands")
     ap.add_argument("--engine", default="fft",
-                    choices=["dft", "fft", "schoolbook", "arbitrary"])
+                    choices=["dft", "fft", "schoolbook", "arbitrary", "ntt"])
     ap.add_argument("--out-dir", default="outputs")
     ap.add_argument("--benchmark", action="store_true",
                     help="run the timing study instead of a single multiplication")
@@ -404,5 +431,7 @@ python bigmul.py inputs/1.txt --engine dft --out-dir outputs/task_a/1
 python bigmul.py inputs/2.txt --engine dft --out-dir outputs/task_a/2
 python bigmul.py inputs/3.txt --engine fft --out-dir outputs/task_a/3
 python bigmul.py inputs/4.txt --engine fft --out-dir outputs/task_a/4
+python bigmul.py inputs/1.txt --engine arbitrary --out-dir outputs/task_a/5
+python bigmul.py inputs/1.txt --engine ntt --out-dir outputs/task_a/5
 python bigmul.py --benchmark --out-dir outputs/task_a/benchmark
 """

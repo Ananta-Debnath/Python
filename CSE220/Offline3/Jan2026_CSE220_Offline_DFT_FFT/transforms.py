@@ -29,7 +29,7 @@ def next_power_of_two(n):
     Both tasks need this to choose a transform length for the radix-2 FFT.
     """
     # TODO: implement this function
-    
+
     power = 1
     while power < n:
         power *= 2
@@ -228,10 +228,11 @@ class ArbitraryLengthFFT(FFTTransformer):
         for k in range(1, N):
             b[M - k] = b[k]
 
-        A = super().transform(np.pad(a, (0, M - N)))
-        B = super().transform(b)
+        fft = FFTTransformer()
+        A = fft.transform(np.pad(a, (0, M - N)))
+        B = fft.transform(b)
 
-        convolution = super().inverse(A * B)
+        convolution = fft.inverse(A * B)
 
         result = convolution[:N] * chirp
 
@@ -248,3 +249,144 @@ class ArbitraryLengthFFT(FFTTransformer):
         return np.conjugate(
             self.transform(np.conjugate(spectrum))
         ) / len(spectrum)
+
+
+class NTTTransformer(FFTTransformer):
+    """
+    Radix-2 Number Theoretic Transform.
+
+    Uses:
+        p = 998244353
+        primitive root = 3
+    """
+
+    name = "ntt"
+
+    MOD = 998244353
+    ROOT = 3
+
+    def _is_power_of_two(self, n):
+        return n > 0 and (n & (n - 1)) == 0
+
+    def _bit_reverse(self, values):
+        """Perform an in-place bit-reversal permutation."""
+        n = len(values)
+        j = 0
+
+        for i in range(1, n):
+            bit = n >> 1
+
+            while j & bit:
+                j ^= bit
+                bit >>= 1
+
+            j ^= bit
+
+            if i < j:
+                values[i], values[j] = values[j], values[i]
+
+    def _ntt(self, values, inverse=False):
+        """
+        Radix-2 NTT butterfly machinery.
+
+        The same function is used for both forward and inverse transforms.
+        """
+        n = len(values)
+
+        self._bit_reverse(values)
+
+        if inverse:
+            root = pow(self.ROOT, self.MOD - 2, self.MOD)
+        else:
+            root = self.ROOT
+
+        length = 2
+
+        while length <= n:
+            half = length // 2
+
+            # Compute this stage's twiddle factors once.
+            wlen = pow(
+                root,
+                (self.MOD - 1) // length,
+                self.MOD
+            )
+
+            twiddles = np.empty(half, dtype=np.int64)
+            twiddles[0] = 1
+
+            for k in range(1, half):
+                twiddles[k] = (
+                    twiddles[k - 1] * wlen
+                ) % self.MOD
+
+            # Apply the butterflies.
+            for start in range(0, n, length):
+                for k in range(half):
+                    u = values[start + k]
+
+                    v = (
+                        values[start + k + half]
+                        * twiddles[k]
+                    ) % self.MOD
+
+                    values[start + k] = (
+                        u + v
+                    ) % self.MOD
+
+                    values[start + k + half] = (
+                        u - v
+                    ) % self.MOD
+
+            length *= 2
+
+        if inverse:
+            inv_n = pow(n, self.MOD - 2, self.MOD)
+
+            for i in range(n):
+                values[i] = (
+                    values[i] * inv_n
+                ) % self.MOD
+
+        return values
+
+    def transform(self, x):
+        """Forward NTT."""
+        x = np.asarray(x, dtype=np.int64)
+
+        n = len(x)
+
+        if not self._is_power_of_two(n):
+            raise ValueError(
+                "NTT length must be a power of two"
+            )
+
+        values = np.array(
+            x % self.MOD,
+            dtype=np.int64,
+            copy=True
+        )
+
+        return self._ntt(values, inverse=False)
+
+    def inverse(self, spectrum):
+        """Inverse NTT, including the 1/N factor."""
+        spectrum = np.asarray(
+            spectrum,
+            dtype=np.int64
+        )
+
+        n = len(spectrum)
+
+        if not self._is_power_of_two(n):
+            raise ValueError(
+                "NTT length must be a power of two"
+            )
+
+        values = np.array(
+            spectrum % self.MOD,
+            dtype=np.int64,
+            copy=True
+        )
+
+        return self._ntt(values, inverse=True)
