@@ -28,7 +28,7 @@ from bench_utils import plot_runtime_curve, time_best, timing_table_lines
 from image_utils import (load_image, make_kernel, save_comparison, save_image,
                          save_kernel_preview)
 from io_utils import write_report
-from transforms import DFTAnalyzer, FFTTransformer, next_power_of_two
+from transforms import ArbitraryLengthFFT, DFTAnalyzer, FFTTransformer, next_power_of_two
 
 
 def transform_2d(plane, engine):
@@ -50,7 +50,21 @@ def transform_2d(plane, engine):
     numpy.ndarray of complex128, shape (P, Q)
     """
     # TODO: implement this function
-    raise NotImplementedError("Implement transform_2d")
+    plane = np.asarray(plane, dtype=np.complex128)
+
+    # Transform every row
+    transformed = np.empty_like(plane)
+
+    for i in range(plane.shape[0]):
+        transformed[i, :] = engine.transform(plane[i, :])
+
+    # Transform every column
+    result = np.empty_like(transformed)
+
+    for j in range(transformed.shape[1]):
+        result[:, j] = engine.transform(transformed[:, j])
+
+    return result
 
 
 def inverse_2d(spectrum, engine):
@@ -58,7 +72,21 @@ def inverse_2d(spectrum, engine):
     2D inverse transform, the same way round. Shape is preserved.
     """
     # TODO: implement this function
-    raise NotImplementedError("Implement inverse_2d")
+    spectrum = np.asarray(spectrum, dtype=np.complex128)
+
+    # Inverse transform every row
+    transformed = np.empty_like(spectrum)
+
+    for i in range(spectrum.shape[0]):
+        transformed[i, :] = engine.inverse(spectrum[i, :])
+
+    # Inverse transform every column
+    result = np.empty_like(transformed)
+
+    for j in range(transformed.shape[1]):
+        result[:, j] = engine.inverse(transformed[:, j])
+
+    return result
 
 
 def convolve_plane(plane, kernel, engine, circular=False):
@@ -100,7 +128,66 @@ def convolve_plane(plane, kernel, engine, circular=False):
     numpy.ndarray of float64, same shape as ``plane``
     """
     # TODO: implement this function
-    raise NotImplementedError("Implement convolve_plane")
+    plane = np.asarray(plane, dtype=np.float64)
+    kernel = np.asarray(kernel, dtype=np.float64)
+
+    H, W = plane.shape
+    kh, kw = kernel.shape
+
+    if circular:
+        wrapped_kernel = np.zeros((H, W), dtype=np.float64)
+        wrapped_kernel[:kh, :kw] = kernel
+        wrapped_kernel = np.roll(wrapped_kernel, (-(kh // 2), -(kw // 2)),axis=(0, 1))
+
+        spectrum_plane = transform_2d(plane, engine)
+        spectrum_kernel = transform_2d(wrapped_kernel, engine)
+        result = inverse_2d(spectrum_plane * spectrum_kernel, engine)
+
+        return result.real
+
+    # ---------------------------------------------------------
+    # Linear convolution
+    # ---------------------------------------------------------
+
+    full_H = H + kh - 1
+    full_W = W + kw - 1
+
+    # FFT requires a power-of-two size in each dimension.
+    if engine.name == "fft":
+        transform_H = next_power_of_two(full_H)
+        transform_W = next_power_of_two(full_W)
+    else:
+        transform_H = full_H
+        transform_W = full_W
+
+    # Zero-pad image and kernel.
+    padded_plane = np.zeros((transform_H, transform_W), dtype=np.complex128)
+    padded_kernel = np.zeros((transform_H, transform_W), dtype=np.complex128)
+
+    padded_plane[:H, :W] = plane
+    padded_kernel[:kh, :kw] = kernel
+
+    # Transform both.
+    plane_spectrum = transform_2d(padded_plane, engine)
+    kernel_spectrum = transform_2d(padded_kernel, engine)
+
+    # Convolution theorem.
+    convolution_spectrum = plane_spectrum * kernel_spectrum
+
+    # Back to spatial domain.
+    full_result = inverse_2d(convolution_spectrum, engine).real
+
+    # Crop the center so that the output has the same
+    # dimensions as the original image.
+    row_start = kh // 2
+    col_start = kw // 2
+
+    result = full_result[
+        row_start:row_start + H,
+        col_start:col_start + W
+    ]
+
+    return result.astype(np.float64)
 
 
 def convolve_image(image, kernel, engine, circular=False):
@@ -111,7 +198,33 @@ def convolve_image(image, kernel, engine, circular=False):
     plane is convolved independently, then stacked back together.
     """
     # TODO: implement this function
-    raise NotImplementedError("Implement convolve_image")
+    image = np.asarray(image, dtype=np.float64)
+
+    # Grayscale image
+    if image.ndim == 2:
+        return convolve_plane(
+            image,
+            kernel,
+            engine,
+            circular=circular
+        )
+
+    # Colour image
+    if image.ndim == 3:
+        planes = []
+
+        for c in range(image.shape[2]):
+            result = convolve_plane(
+                image[:, :, c],
+                kernel,
+                engine,
+                circular=circular
+            )
+            planes.append(result)
+
+        return np.stack(planes, axis=2)
+
+    raise ValueError("Image must be a 2D grayscale or 3D colour image")
 
 
 def convolve_plane_direct(plane, kernel):
@@ -126,7 +239,28 @@ def convolve_plane_direct(plane, kernel):
     correct. It is never applied to a full 512x512 image (see run_single).
     """
     # TODO: implement this function
-    raise NotImplementedError("Implement convolve_plane_direct")
+    plane = np.asarray(plane, dtype=np.float64)
+    kernel = np.asarray(kernel, dtype=np.float64)
+
+    H, W = plane.shape
+    kh, kw = kernel.shape
+
+    out = np.zeros((H, W), dtype=np.float64)
+
+    row_offset = kh // 2
+    col_offset = kw // 2
+
+    for r in range(H):
+        for c in range(W):
+            for i in range(kh):
+                for j in range(kw):
+                    src_r = r + row_offset - i
+                    src_c = c + col_offset - j
+
+                    if 0 <= src_r < H and 0 <= src_c < W:
+                        out[r, c] += plane[src_r, src_c] * kernel[i, j]
+
+    return out
 
 
 def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
@@ -157,7 +291,190 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
     1e-9 is a bug, not rounding.
     """
     # TODO: implement this function
-    raise NotImplementedError("Implement run_single")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # ---------------------------------------------------------
+    # Load image
+    # ---------------------------------------------------------
+    image = load_image(path)
+
+    if gray:
+        if image.ndim == 3:
+            image = image[:, :, 0]
+
+    H, W = image.shape[:2]
+
+    # ---------------------------------------------------------
+    # Build kernel
+    # ---------------------------------------------------------
+    if kernel_name == "bokeh":
+        kernel = make_kernel("bokeh", radius=param)
+
+    elif kernel_name == "gaussian":
+        kernel = make_kernel("gaussian", size=param)
+
+    elif kernel_name == "box":
+        kernel = make_kernel("box", size=param)
+
+    elif kernel_name == "motion":
+        kernel = make_kernel(
+            "motion",
+            length=param,
+            angle=30.0
+        )
+
+    else:
+        raise ValueError(f"Unknown kernel: {kernel_name}")
+
+    # ---------------------------------------------------------
+    # Select transform engine
+    # ---------------------------------------------------------
+    if engine_name == "dft":
+        engine = DFTAnalyzer()
+
+    elif engine_name == "fft":
+        engine = FFTTransformer()
+
+    elif engine_name == "arbitrary":
+        engine = ArbitraryLengthFFT()
+
+    else:
+        raise ValueError(f"Unknown engine: {engine_name}")
+
+    # ---------------------------------------------------------
+    # Linear convolution
+    # ---------------------------------------------------------
+    blurred = convolve_image(
+        image,
+        kernel,
+        engine,
+        circular=False
+    )
+
+    # ---------------------------------------------------------
+    # Circular convolution
+    # ---------------------------------------------------------
+    wraparound = convolve_image(
+        image,
+        kernel,
+        engine,
+        circular=True
+    )
+
+    # ---------------------------------------------------------
+    # Verification on top-left 64x64 crop
+    # ---------------------------------------------------------
+    crop = image[:64, :64]
+
+    if crop.ndim == 3:
+        crop = crop[:, :, 0]
+
+    spectral_crop = convolve_plane(
+        crop,
+        kernel,
+        engine,
+        circular=False
+    )
+
+    direct_crop = convolve_plane_direct(
+        crop,
+        kernel
+    )
+
+    max_error = np.max(np.abs(spectral_crop - direct_crop))
+
+    verdict = "MATCH" if max_error <= 1e-9 else "MISMATCH"
+
+    # ---------------------------------------------------------
+    # Determine transform size used
+    # ---------------------------------------------------------
+    kh, kw = kernel.shape
+
+    linear_H = H + kh - 1
+    linear_W = W + kw - 1
+
+    if engine.name == "fft":
+        transform_H = next_power_of_two(linear_H)
+        transform_W = next_power_of_two(linear_W)
+    else:
+        transform_H = linear_H
+        transform_W = linear_W
+
+    # ---------------------------------------------------------
+    # Save outputs
+    # ---------------------------------------------------------
+    save_image(
+        blurred,
+        os.path.join(out_dir, "blurred.png")
+    )
+
+    save_image(
+        wraparound,
+        os.path.join(out_dir, "wraparound.png")
+    )
+
+    save_kernel_preview(
+        kernel,
+        os.path.join(out_dir, "kernel.png")
+    )
+
+    image_name = os.path.splitext(os.path.basename(path))[0]
+    suptitle = (
+        f"{image_name} — "
+        f"{kernel_name.capitalize()} ({kh}×{kw}) — "
+        f"{engine_name.upper()}"
+    )
+
+    save_comparison(
+        [image, blurred, wraparound],
+        ["Original", "Blurred", "Wraparound"],
+        os.path.join(out_dir, "comparison.png"),
+        suptitle=suptitle
+    )
+
+    # ---------------------------------------------------------
+    # Report
+    # ---------------------------------------------------------
+    if image.ndim == 2:
+        image_description = f"{H} x {W}, gray"
+    else:
+        image_description = f"{H} x {W}, RGB"
+
+    with open(
+        os.path.join(out_dir, "report.txt"),
+        "w",
+        encoding="utf-8"
+    ) as f:
+        f.write(
+            "Task B -- 2D convolution through the frequency domain\n"
+        )
+        f.write(
+            f"image               : {path}  ({image_description})\n"
+        )
+        f.write(
+            f"kernel              : {kernel_name}  "
+            f"({kh} x {kw})\n"
+        )
+        f.write(
+            f"engine              : {engine_name}\n"
+        )
+        f.write(
+            f"linear-conv size    : "
+            f"{linear_H} x {linear_W}\n"
+        )
+        f.write(
+            f"transform size      : "
+            f"{transform_H} x {transform_W}\n"
+        )
+        f.write(
+            f"max |spectral - direct| on 64x64 crop : "
+            f"{max_error:.3e}\n"
+        )
+        f.write(
+            f"verification        : {verdict}\n"
+        )
+
+    print(verdict)
 
 
 # ---------------------------------------------------------------------------
@@ -270,3 +587,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+"""
+python image_conv.py images/skyline512.png --kernel bokeh --param 9 \
+--engine fft --out -dir outputs/task_b/skyline_bokeh
+python image_conv.py images/sunset512.png --gray --kernel motion --param 41 \
+--engine fft --out -dir outputs/task_b/sunset_motion
+python image_conv.py images/skyline256.png --gray --kernel gaussian --param 21 \
+--engine dft --out -dir outputs/task_b/skyline256_gaussian_dft
+python image_conv.py images/skyline512.png --benchmark \
+--out -dir outputs/task_b/benchmark
+
+
+python image_conv.py images/skyline512.png --kernel bokeh --param 9 --engine fft --out-dir outputs/task_b/skyline_bokeh
+python image_conv.py images/nebula512.png --kernel bokeh --param 13 --engine fft --out-dir outputs/task_b/nebula_bokeh
+python image_conv.py images/sunset512.png --gray --kernel motion --param 41 --engine fft --out-dir outputs/task_b/sunset_motion
+python image_conv.py images/skyline256.png --gray --kernel gaussian --param 21 --engine dft --out-dir outputs/task_b/skyline256_gaussian_dft
+python image_conv.py images/skyline512.png --benchmark --out-dir outputs/task_b/benchmark
+"""

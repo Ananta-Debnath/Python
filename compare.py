@@ -40,7 +40,7 @@ def compare_text(file1, file2):
         if line1 != line2:
             return False, (
                 f"Difference at line {i + 1}: "
-                f"'{line1}' != '{line2}'"
+                # f"'{line1}' != '{line2}'"
             )
 
     return False, "Different"
@@ -59,8 +59,9 @@ def compare_png(file1, file2):
         return True, "Identical pixels"
 
     diff_pixels = np.sum(np.any(arr1 != arr2, axis=2))
+    diff_percentage = (diff_pixels / arr1.shape[0] / arr1.shape[1]) * 100
 
-    return False, f"{diff_pixels} pixels differ"
+    return False, f"{diff_percentage:.2f}% pixels differ"
 
 def save_difference(img1_path, img2_path, output):
     img1 = Image.open(img1_path).convert("RGBA")
