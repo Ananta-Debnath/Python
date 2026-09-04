@@ -305,7 +305,6 @@ class NTTTransformer(FFTTransformer):
         while length <= n:
             half = length // 2
 
-            # Compute this stage's twiddle factors once.
             wlen = pow(
                 root,
                 (self.MOD - 1) // length,
@@ -320,7 +319,6 @@ class NTTTransformer(FFTTransformer):
                     twiddles[k - 1] * wlen
                 ) % self.MOD
 
-            # Apply the butterflies.
             for start in range(0, n, length):
                 for k in range(half):
                     u = values[start + k]

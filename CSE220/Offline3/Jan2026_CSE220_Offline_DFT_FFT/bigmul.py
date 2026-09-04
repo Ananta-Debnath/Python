@@ -301,18 +301,7 @@ def run_single(path, method, out_dir):
 
     os.makedirs(out_dir, exist_ok=True)
 
-    with open(path, "r", encoding="utf-8") as f:
-        lines = [
-            line.strip()
-            for line in f
-            if line.strip() and not line.strip().startswith("#")
-        ]
-
-    if len(lines) != 2:
-        raise ValueError("Input file must contain exactly two integers")
-
-    text_a = lines[0]
-    text_b = lines[1]
+    text_a, text_b = read_operands(path)
 
     product, N, limbs_a, limbs_b, base_digits = multiply(text_a, text_b, method)
 
@@ -325,25 +314,21 @@ def run_single(path, method, out_dir):
 
     print(verdict)
 
-    with open(os.path.join(out_dir, "product.txt"), "w", encoding="utf-8") as f:
-        f.write(product + "\n")
+    write_text(os.path.join(out_dir, "product.txt"), product)
 
-    with open(os.path.join(out_dir, "report.txt"), "w", encoding="utf-8") as f:
-        f.write("Task A -- big-integer multiplication by spectral convolution\n")
-        f.write(f"input file          : {path}\n")
-        f.write(f"method              : {method}\n")
-        f.write(
-            f"digits of A / B     : "
-            f"{len(text_a.lstrip('+-'))} / {len(text_b.lstrip('+-'))}\n"
-        )
-        f.write(f"base                : 10^{base_digits}\n")
-        f.write(
-            f"limbs of A / B      : "
-            f"{len(limbs_a)} / {len(limbs_b)}\n"
-        )
-        f.write(f"transform length N  : {N}\n")
-        f.write(f"digits of product   : {len(product.lstrip('-'))}\n")
-        f.write(f"verification        : {verdict}\n")
+    report = [
+        "Task A -- big-integer multiplication by spectral convolution",
+        f"input file          : {path}",
+        f"method              : {method}",
+        f"digits of A / B     : {len(text_a.lstrip('+-'))} / {len(text_b.lstrip('+-'))}",
+        f"base                : 10^{base_digits}",
+        f"limbs of A / B      : {len(limbs_a)} / {len(limbs_b)}",
+        f"transform length N  : {N}",
+        f"digits of product   : {len(product.lstrip('-'))}",
+        f"verification        : {verdict}",
+    ]
+
+    write_report(os.path.join(out_dir, "report.txt"), report)
 
     if verdict == "MISMATCH":
         print(f"MISMATCH: expected {expected}, got {product}")

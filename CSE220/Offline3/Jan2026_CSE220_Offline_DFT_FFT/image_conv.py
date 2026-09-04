@@ -52,13 +52,11 @@ def transform_2d(plane, engine):
     # TODO: implement this function
     plane = np.asarray(plane, dtype=np.complex128)
 
-    # Transform every row
     transformed = np.empty_like(plane)
 
     for i in range(plane.shape[0]):
         transformed[i, :] = engine.transform(plane[i, :])
 
-    # Transform every column
     result = np.empty_like(transformed)
 
     for j in range(transformed.shape[1]):
@@ -74,13 +72,11 @@ def inverse_2d(spectrum, engine):
     # TODO: implement this function
     spectrum = np.asarray(spectrum, dtype=np.complex128)
 
-    # Inverse transform every row
     transformed = np.empty_like(spectrum)
 
     for i in range(spectrum.shape[0]):
         transformed[i, :] = engine.inverse(spectrum[i, :])
 
-    # Inverse transform every column
     result = np.empty_like(transformed)
 
     for j in range(transformed.shape[1]):
@@ -145,14 +141,9 @@ def convolve_plane(plane, kernel, engine, circular=False):
 
         return result.real
 
-    # ---------------------------------------------------------
-    # Linear convolution
-    # ---------------------------------------------------------
-
     full_H = H + kh - 1
     full_W = W + kw - 1
 
-    # FFT requires a power-of-two size in each dimension.
     if engine.name == "fft":
         transform_H = next_power_of_two(full_H)
         transform_W = next_power_of_two(full_W)
@@ -160,25 +151,19 @@ def convolve_plane(plane, kernel, engine, circular=False):
         transform_H = full_H
         transform_W = full_W
 
-    # Zero-pad image and kernel.
     padded_plane = np.zeros((transform_H, transform_W), dtype=np.complex128)
     padded_kernel = np.zeros((transform_H, transform_W), dtype=np.complex128)
 
     padded_plane[:H, :W] = plane
     padded_kernel[:kh, :kw] = kernel
 
-    # Transform both.
     plane_spectrum = transform_2d(padded_plane, engine)
     kernel_spectrum = transform_2d(padded_kernel, engine)
 
-    # Convolution theorem.
     convolution_spectrum = plane_spectrum * kernel_spectrum
 
-    # Back to spatial domain.
     full_result = inverse_2d(convolution_spectrum, engine).real
 
-    # Crop the center so that the output has the same
-    # dimensions as the original image.
     row_start = kh // 2
     col_start = kw // 2
 
@@ -200,7 +185,6 @@ def convolve_image(image, kernel, engine, circular=False):
     # TODO: implement this function
     image = np.asarray(image, dtype=np.float64)
 
-    # Grayscale image
     if image.ndim == 2:
         return convolve_plane(
             image,
@@ -209,7 +193,6 @@ def convolve_image(image, kernel, engine, circular=False):
             circular=circular
         )
 
-    # Colour image
     if image.ndim == 3:
         planes = []
 
@@ -293,9 +276,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
     # TODO: implement this function
     os.makedirs(out_dir, exist_ok=True)
 
-    # ---------------------------------------------------------
-    # Load image
-    # ---------------------------------------------------------
+
     image = load_image(path)
 
     if gray:
@@ -304,9 +285,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
 
     H, W = image.shape[:2]
 
-    # ---------------------------------------------------------
-    # Build kernel
-    # ---------------------------------------------------------
+
     if kernel_name == "bokeh":
         kernel = make_kernel("bokeh", radius=param)
 
@@ -326,9 +305,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
     else:
         raise ValueError(f"Unknown kernel: {kernel_name}")
 
-    # ---------------------------------------------------------
-    # Select transform engine
-    # ---------------------------------------------------------
+
     if engine_name == "dft":
         engine = DFTAnalyzer()
 
@@ -341,9 +318,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
     else:
         raise ValueError(f"Unknown engine: {engine_name}")
 
-    # ---------------------------------------------------------
-    # Linear convolution
-    # ---------------------------------------------------------
+
     blurred = convolve_image(
         image,
         kernel,
@@ -351,9 +326,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
         circular=False
     )
 
-    # ---------------------------------------------------------
-    # Circular convolution
-    # ---------------------------------------------------------
+
     wraparound = convolve_image(
         image,
         kernel,
@@ -361,9 +334,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
         circular=True
     )
 
-    # ---------------------------------------------------------
-    # Verification on top-left 64x64 crop
-    # ---------------------------------------------------------
+
     crop = image[:64, :64]
 
     if crop.ndim == 3:
@@ -385,9 +356,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
 
     verdict = "MATCH" if max_error <= 1e-9 else "MISMATCH"
 
-    # ---------------------------------------------------------
-    # Determine transform size used
-    # ---------------------------------------------------------
+
     kh, kw = kernel.shape
 
     linear_H = H + kh - 1
@@ -400,9 +369,7 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
         transform_H = linear_H
         transform_W = linear_W
 
-    # ---------------------------------------------------------
-    # Save outputs
-    # ---------------------------------------------------------
+
     save_image(
         blurred,
         os.path.join(out_dir, "blurred.png")
@@ -432,47 +399,24 @@ def run_single(path, kernel_name, param, engine_name, out_dir, gray=False):
         suptitle=suptitle
     )
 
-    # ---------------------------------------------------------
-    # Report
-    # ---------------------------------------------------------
+
     if image.ndim == 2:
         image_description = f"{H} x {W}, gray"
     else:
         image_description = f"{H} x {W}, RGB"
 
-    with open(
-        os.path.join(out_dir, "report.txt"),
-        "w",
-        encoding="utf-8"
-    ) as f:
-        f.write(
-            "Task B -- 2D convolution through the frequency domain\n"
-        )
-        f.write(
-            f"image               : {path}  ({image_description})\n"
-        )
-        f.write(
-            f"kernel              : {kernel_name}  "
-            f"({kh} x {kw})\n"
-        )
-        f.write(
-            f"engine              : {engine_name}\n"
-        )
-        f.write(
-            f"linear-conv size    : "
-            f"{linear_H} x {linear_W}\n"
-        )
-        f.write(
-            f"transform size      : "
-            f"{transform_H} x {transform_W}\n"
-        )
-        f.write(
-            f"max |spectral - direct| on 64x64 crop : "
-            f"{max_error:.3e}\n"
-        )
-        f.write(
-            f"verification        : {verdict}\n"
-        )
+    report = [
+        "Task B -- 2D convolution through the frequency domain",
+        f"image               : {path}  ({image_description})",
+        f"kernel              : {kernel_name}  ({kh} x {kw})",
+        f"engine              : {engine_name}",
+        f"linear-conv size    : {linear_H} x {linear_W}",
+        f"transform size      : {transform_H} x {transform_W}",
+        f"max |spectral - direct| on 64x64 crop : {max_error:.3e}",
+        f"verification        : {verdict}"
+    ]
+
+    write_report(os.path.join(out_dir, "report.txt"), report)
 
     print(verdict)
 
