@@ -1,0 +1,11 @@
+Input path: inputs/1.txt
+Method: dft
+Digits in operand A: 12
+Digits in operand B: 9
+Base: 10000
+Base digits: 4
+Limbs in operand A: 3
+Limbs in operand B: 3
+Transform length N: 5
+Product digits: 21
+Verification: MATCH
